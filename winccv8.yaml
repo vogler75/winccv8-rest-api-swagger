@@ -8,19 +8,16 @@ info:
   contact:
     name: Siemens WinCC Support
     url: https://support.industry.siemens.com
-  license:
-    name: Siemens License
-    url: https://www.siemens.com/global/en/products/automation/industrial-communication/wincc.html
 
 servers:
-  - url: https://{server}:{port}/api/v1
+  - url: https://{server}:{port}/WinCCRestService
     description: WinCC V8 Server
     variables:
       server:
         default: localhost
         description: WinCC Server IP or hostname
       port:
-        default: "443"
+        default: "34569"
         description: HTTPS port
 
 security:
