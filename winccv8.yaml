@@ -1,0 +1,874 @@
+openapi: 3.0.3
+info:
+  title: WinCC V8 REST API
+  description: |
+    REST API for WinCC V8 providing access to tag values, alarms, and system operations.
+    This API allows external applications to interact with WinCC systems for monitoring and control purposes.
+  version: "8.0"
+  contact:
+    name: Siemens WinCC Support
+    url: https://support.industry.siemens.com
+  license:
+    name: Siemens License
+    url: https://www.siemens.com/global/en/products/automation/industrial-communication/wincc.html
+
+servers:
+  - url: https://{server}:{port}/api/v1
+    description: WinCC V8 Server
+    variables:
+      server:
+        default: localhost
+        description: WinCC Server IP or hostname
+      port:
+        default: "443"
+        description: HTTPS port
+
+security:
+  - ApiKeyAuth: []
+  - BasicAuth: []
+
+paths:
+  /tags:
+    get:
+      summary: Get all tags
+      description: Retrieve a list of all available tags in the WinCC system
+      tags:
+        - Tags
+      parameters:
+        - name: filter
+          in: query
+          description: Filter tags by name pattern
+          required: false
+          schema:
+            type: string
+            example: "Temperature*"
+        - name: limit
+          in: query
+          description: Maximum number of tags to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          description: Number of tags to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of tags retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+                  totalCount:
+                    type: integer
+                    description: Total number of tags matching the filter
+                  offset:
+                    type: integer
+                    description: Number of tags skipped
+                  limit:
+                    type: integer
+                    description: Maximum number of tags returned
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tags/{tagName}:
+    get:
+      summary: Get tag by name
+      description: Retrieve information about a specific tag
+      tags:
+        - Tags
+      parameters:
+        - name: tagName
+          in: path
+          required: true
+          description: Name of the tag
+          schema:
+            type: string
+            example: "Temperature_Reactor_1"
+      responses:
+        '200':
+          description: Tag information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tags/{tagName}/value:
+    get:
+      summary: Get tag value
+      description: Retrieve the current value of a specific tag
+      tags:
+        - Tags
+      parameters:
+        - name: tagName
+          in: path
+          required: true
+          description: Name of the tag
+          schema:
+            type: string
+            example: "Temperature_Reactor_1"
+      responses:
+        '200':
+          description: Tag value retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagValue'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      summary: Set tag value
+      description: Update the value of a specific tag
+      tags:
+        - Tags
+      parameters:
+        - name: tagName
+          in: path
+          required: true
+          description: Name of the tag
+          schema:
+            type: string
+            example: "Setpoint_Reactor_1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  oneOf:
+                    - type: number
+                    - type: string
+                    - type: boolean
+                  description: New value for the tag
+                  example: 25.5
+                quality:
+                  type: string
+                  enum: ["Good", "Bad", "Uncertain"]
+                  description: Quality of the value
+                  default: "Good"
+              required:
+                - value
+      responses:
+        '200':
+          description: Tag value updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagValue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tags/values:
+    post:
+      summary: Get multiple tag values
+      description: Retrieve values for multiple tags in a single request
+      tags:
+        - Tags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of tag names
+                  example: ["Temperature_Reactor_1", "Pressure_Tank_A", "Level_Silo_3"]
+                includeQuality:
+                  type: boolean
+                  description: Include quality information in response
+                  default: true
+                includeTimestamp:
+                  type: boolean
+                  description: Include timestamp information in response
+                  default: true
+              required:
+                - tags
+      responses:
+        '200':
+          description: Tag values retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  values:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TagValue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      summary: Set multiple tag values
+      description: Update values for multiple tags in a single request
+      tags:
+        - Tags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                values:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      tagName:
+                        type: string
+                        description: Name of the tag
+                      value:
+                        oneOf:
+                          - type: number
+                          - type: string
+                          - type: boolean
+                        description: New value for the tag
+                      quality:
+                        type: string
+                        enum: ["Good", "Bad", "Uncertain"]
+                        description: Quality of the value
+                        default: "Good"
+                    required:
+                      - tagName
+                      - value
+              required:
+                - values
+      responses:
+        '200':
+          description: Tag values updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tagName:
+                          type: string
+                          description: Name of the tag
+                        success:
+                          type: boolean
+                          description: Whether the update was successful
+                        error:
+                          type: string
+                          description: Error message if update failed
+                        value:
+                          $ref: '#/components/schemas/TagValue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /alarms:
+    get:
+      summary: Get alarms
+      description: Retrieve a list of alarms from the WinCC system
+      tags:
+        - Alarms
+      parameters:
+        - name: state
+          in: query
+          description: Filter alarms by state
+          required: false
+          schema:
+            type: string
+            enum: ["Active", "Inactive", "Acknowledged", "Unacknowledged"]
+        - name: priority
+          in: query
+          description: Filter alarms by priority
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 16
+        - name: startTime
+          in: query
+          description: Start time for alarm query (ISO 8601 format)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2023-01-01T00:00:00Z"
+        - name: endTime
+          in: query
+          description: End time for alarm query (ISO 8601 format)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2023-12-31T23:59:59Z"
+        - name: limit
+          in: query
+          description: Maximum number of alarms to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          description: Number of alarms to skip
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of alarms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alarms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alarm'
+                  totalCount:
+                    type: integer
+                    description: Total number of alarms matching the filter
+                  offset:
+                    type: integer
+                    description: Number of alarms skipped
+                  limit:
+                    type: integer
+                    description: Maximum number of alarms returned
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /alarms/{alarmId}/acknowledge:
+    post:
+      summary: Acknowledge alarm
+      description: Acknowledge a specific alarm
+      tags:
+        - Alarms
+      parameters:
+        - name: alarmId
+          in: path
+          required: true
+          description: ID of the alarm to acknowledge
+          schema:
+            type: string
+            example: "ALM_001_20231215_143022"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  description: Optional comment for the acknowledgment
+                  example: "Acknowledged by operator - maintenance scheduled"
+      responses:
+        '200':
+          description: Alarm acknowledged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Alarm acknowledged successfully"
+                  acknowledgedAt:
+                    type: string
+                    format: date-time
+                    example: "2023-12-15T14:30:22Z"
+                  acknowledgedBy:
+                    type: string
+                    example: "operator1"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /system/info:
+    get:
+      summary: Get system information
+      description: Retrieve information about the WinCC system
+      tags:
+        - System
+      responses:
+        '200':
+          description: System information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /system/status:
+    get:
+      summary: Get system status
+      description: Retrieve the current status of the WinCC system
+      tags:
+        - System
+      responses:
+        '200':
+          description: System status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /archive/tags/{tagName}:
+    get:
+      summary: Get tag archive data
+      description: Retrieve historical data for a specific tag
+      tags:
+        - Archive
+      parameters:
+        - name: tagName
+          in: path
+          required: true
+          description: Name of the tag
+          schema:
+            type: string
+            example: "Temperature_Reactor_1"
+        - name: startTime
+          in: query
+          required: true
+          description: Start time for data query (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2023-01-01T00:00:00Z"
+        - name: endTime
+          in: query
+          required: true
+          description: End time for data query (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+            example: "2023-01-02T00:00:00Z"
+        - name: resolution
+          in: query
+          description: Data resolution in seconds
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            example: 60
+        - name: limit
+          in: query
+          description: Maximum number of data points to return
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 1000
+      responses:
+        '200':
+          description: Archive data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tagName:
+                    type: string
+                    description: Name of the tag
+                  startTime:
+                    type: string
+                    format: date-time
+                    description: Start time of the data
+                  endTime:
+                    type: string
+                    format: date-time
+                    description: End time of the data
+                  dataPoints:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ArchiveDataPoint'
+                  totalCount:
+                    type: integer
+                    description: Total number of data points in the time range
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key for authentication
+    BasicAuth:
+      type: http
+      scheme: basic
+      description: Basic HTTP authentication
+
+  schemas:
+    Tag:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the tag
+          example: "Temperature_Reactor_1"
+        description:
+          type: string
+          description: Description of the tag
+          example: "Temperature sensor for reactor 1"
+        dataType:
+          type: string
+          enum: ["Boolean", "Integer", "Float", "String", "DateTime"]
+          description: Data type of the tag
+          example: "Float"
+        unit:
+          type: string
+          description: Unit of measurement
+          example: "°C"
+        accessRights:
+          type: string
+          enum: ["Read", "Write", "ReadWrite"]
+          description: Access rights for the tag
+          example: "ReadWrite"
+        archived:
+          type: boolean
+          description: Whether the tag is archived
+          example: true
+        alarmEnabled:
+          type: boolean
+          description: Whether alarms are enabled for this tag
+          example: true
+
+    TagValue:
+      type: object
+      properties:
+        tagName:
+          type: string
+          description: Name of the tag
+          example: "Temperature_Reactor_1"
+        value:
+          oneOf:
+            - type: number
+            - type: string
+            - type: boolean
+          description: Current value of the tag
+          example: 25.5
+        quality:
+          type: string
+          enum: ["Good", "Bad", "Uncertain"]
+          description: Quality of the value
+          example: "Good"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the value was last updated
+          example: "2023-12-15T14:30:22Z"
+        unit:
+          type: string
+          description: Unit of measurement
+          example: "°C"
+
+    Alarm:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the alarm
+          example: "ALM_001_20231215_143022"
+        name:
+          type: string
+          description: Name of the alarm
+          example: "High Temperature Alarm"
+        description:
+          type: string
+          description: Description of the alarm
+          example: "Temperature exceeded 100°C in reactor 1"
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 16
+          description: Priority level of the alarm
+          example: 5
+        state:
+          type: string
+          enum: ["Active", "Inactive"]
+          description: Current state of the alarm
+          example: "Active"
+        acknowledged:
+          type: boolean
+          description: Whether the alarm has been acknowledged
+          example: false
+        occurredAt:
+          type: string
+          format: date-time
+          description: When the alarm occurred
+          example: "2023-12-15T14:30:22Z"
+        acknowledgedAt:
+          type: string
+          format: date-time
+          description: When the alarm was acknowledged
+          example: "2023-12-15T14:35:10Z"
+        acknowledgedBy:
+          type: string
+          description: Who acknowledged the alarm
+          example: "operator1"
+        tagName:
+          type: string
+          description: Associated tag name
+          example: "Temperature_Reactor_1"
+        value:
+          oneOf:
+            - type: number
+            - type: string
+            - type: boolean
+          description: Value that triggered the alarm
+          example: 105.2
+        threshold:
+          type: number
+          description: Threshold value for the alarm
+          example: 100.0
+
+    SystemInfo:
+      type: object
+      properties:
+        version:
+          type: string
+          description: WinCC version
+          example: "8.0.1"
+        serverName:
+          type: string
+          description: Name of the WinCC server
+          example: "WinCC-Server-01"
+        startTime:
+          type: string
+          format: date-time
+          description: When the system was started
+          example: "2023-12-01T08:00:00Z"
+        licenseInfo:
+          type: object
+          properties:
+            type:
+              type: string
+              example: "Professional"
+            maxTags:
+              type: integer
+              example: 10000
+            maxClients:
+              type: integer
+              example: 50
+        features:
+          type: array
+          items:
+            type: string
+          description: Available features
+          example: ["Alarms", "Trends", "Archive", "Redundancy"]
+
+    SystemStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["Running", "Stopped", "Error", "Maintenance"]
+          description: Current system status
+          example: "Running"
+        uptime:
+          type: integer
+          description: System uptime in seconds
+          example: 86400
+        activeAlarms:
+          type: integer
+          description: Number of active alarms
+          example: 3
+        connectedClients:
+          type: integer
+          description: Number of connected clients
+          example: 12
+        cpuUsage:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: CPU usage percentage
+          example: 35.5
+        memoryUsage:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Memory usage percentage
+          example: 68.2
+        diskUsage:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Disk usage percentage
+          example: 42.8
+
+    ArchiveDataPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the data point
+          example: "2023-12-15T14:30:22Z"
+        value:
+          oneOf:
+            - type: number
+            - type: string
+            - type: boolean
+          description: Value at this timestamp
+          example: 25.5
+        quality:
+          type: string
+          enum: ["Good", "Bad", "Uncertain"]
+          description: Quality of the value
+          example: "Good"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "ValidationError"
+        message:
+          type: string
+          description: Error message
+          example: "Invalid tag name format"
+        code:
+          type: integer
+          description: Error code
+          example: 400
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+          example: "2023-12-15T14:30:22Z"
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "ValidationError"
+            message: "Invalid request parameters"
+            code: 400
+            timestamp: "2023-12-15T14:30:22Z"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "AuthenticationError"
+            message: "Invalid API key or credentials"
+            code: 401
+            timestamp: "2023-12-15T14:30:22Z"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "NotFoundError"
+            message: "Tag not found"
+            code: 404
+            timestamp: "2023-12-15T14:30:22Z"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "InternalError"
+            message: "An unexpected error occurred"
+            code: 500
+            timestamp: "2023-12-15T14:30:22Z"
+
+tags:
+  - name: Tags
+    description: Operations related to tag management and value access
+  - name: Alarms
+    description: Operations related to alarm management
+  - name: System
+    description: Operations related to system information and status
+  - name: Archive
+    description: Operations related to historical data access
